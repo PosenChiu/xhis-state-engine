@@ -1,0 +1,13 @@
+.nyc_output
+
+/cpoe
+/test
+/public
+/helm
+/.github
+/.vscode
+/Dockerfile
+/sonar-project.properties
+/azure-pipelines.yml
+/.editorconfig
+/.eslintrc.js

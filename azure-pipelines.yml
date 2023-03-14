@@ -1,0 +1,41 @@
+name: $(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)
+
+variables:
+  isMaster: $[eq(variables['Build.SourceBranchName'], 'master')]
+
+parameters:
+  - name: forceBuild
+    default: false
+    type: boolean
+
+trigger:
+  - master
+
+pool:
+  vmImage: 'ubuntu-20.04'
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '16.x'
+
+  - task: Npm@1
+    inputs:
+      command: 'install'
+      customEndpoint: 'npm-aics-reg'
+
+  - task: CmdLine@2
+    displayName: 'run unit test and generate report'
+    inputs:
+      script: 'npm run test'
+
+  - task: SonarCloudPrepare@1
+    inputs:
+      SonarCloud: 'SonarCloud'
+      organization: 'asus-aics'
+      scannerMode: 'CLI'
+      configMode: 'file'
+      extraProperties:
+
+  - task: SonarCloudAnalyze@1

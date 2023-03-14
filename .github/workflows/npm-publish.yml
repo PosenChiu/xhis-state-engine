@@ -1,0 +1,78 @@
+name: Publish Package
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  check:
+    name: check github package version
+    runs-on: ubuntu-latest
+    outputs:
+      local-ver: ${{ steps.local.outputs.current-version }}
+      remote-ver: ${{ steps.remote.outputs.version }}
+      enable: ${{ steps.compare.outputs.enable }}
+    steps:
+      - name: Checkout the latest code
+        uses: actions/checkout@v2
+      - name: Setup npmrc
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14.x'
+          registry-url: 'https://npm.pkg.github.com/'
+          scope: '@asus-aics'
+      - name: get local version
+        id: local
+        uses: martinbeentjes/npm-get-version-action@master
+      - name: get remote version
+        id: remote
+        run: |
+          echo "::set-output name=version::$(npm show $GITHUB_REPOSITORY version)"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: compare local and remote version, only enable next job if local > remote
+        id: compare
+        run: |
+          a=${{ steps.local.outputs.current-version }}
+          b=${{ steps.remote.outputs.version }}
+          echo "local-ver: $a"
+          echo "remote-ver: $b"
+          chmod +x "${GITHUB_WORKSPACE}/.github/workflows/compare.sh"
+          echo "::set-output name=enable::$(${GITHUB_WORKSPACE}/.github/workflows/compare.sh $a $b)"
+      - name: echo result
+        run: echo "enable = ${{ steps.compare.outputs.enable }}"
+  release:
+    name: release-pkg
+    needs: check
+    if:  ${{ needs.check.outputs.enable == 'yes' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout the latest code
+        uses: actions/checkout@v2
+      - name: Setup npmrc
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16.x'
+          registry-url: 'https://npm.pkg.github.com/'
+          scope: '@asus-aics'
+      - run: npm install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.PAT_R_PKG }}
+      - run: npm run build
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: create tag
+        uses: actions/github-script@v4
+        with:
+          script: |
+            github.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: "refs/tags/v${{ needs.check.outputs.local-ver }}",
+              sha: context.sha
+            })
